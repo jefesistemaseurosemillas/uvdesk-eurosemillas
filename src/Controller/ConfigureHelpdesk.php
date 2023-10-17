@@ -19,6 +19,7 @@ use Webkul\UVDesk\CoreFrameworkBundle\Entity\SupportRole;
 use Webkul\UVDesk\CoreFrameworkBundle\Entity\User;
 use Webkul\UVDesk\CoreFrameworkBundle\Entity\UserInstance;
 use Webkul\UVDesk\CoreFrameworkBundle\Services\UVDeskService;
+use Predis\Client;
 
 class ConfigureHelpdesk extends AbstractController
 {
@@ -53,8 +54,8 @@ class ConfigureHelpdesk extends AbstractController
         ],
     ];
 
-    public function load()
-    {
+    public function load(KernelInterface $kernel)
+    {        
         return $this->render('installation-wizard/index.html.twig');
     }
 
@@ -118,6 +119,74 @@ class ConfigureHelpdesk extends AbstractController
                         'configfiles' => $configfiles_status,
                         'description' => '</span> <br><p> Issue can be resolved by simply <a href="https://www.uvdesk.com/en/blog/open-source-helpdesk-installation-on-ubuntu-uvdesk/" target="_blank"> enabling read/write permissions for your files under config/packages folder of your project.</a></p>',
                     ];
+                break;
+            case 'redis-status':
+                $loadRedis = extension_loaded('redis');
+                $isCacheEnabled = false;
+
+                if ($loadRedis) {
+                    try {
+                        $isCacheEnabled = true;
+                        $redis = new Client();
+
+                        $redis->connect('127.0.0.1', 6379);
+
+                        if ((bool) $redis->isConnected() == false) {
+                            return new JsonResponse([
+                                'status' => false,
+                                'message' => "Failed to establish a connection with redis server.",
+                                'description'=>'</span>Issue can be resolved by simply<p><a href="https://redis.io/docs/getting-started/installation/install-redis-on-linux/" target="_blank"> redis installation process</a> For connecting the redis-sever follow the redis installation process by clicking on link, refresh the browser and try again.</p>'
+                            ]);
+                        }
+                    } catch (\Exception $e) {
+                        return new JsonResponse([
+                            'status' => false,
+                            'message' => "Failed to establish a connection with redis server.",
+                            'description' => '</span> Issue can be resolved by simply <p> <a href="https://redis.io/docs/getting-started/installation/install-redis-on-linux/" target="_blank"> redis installation process </a> For connecting the redis-sever follow the redis installation process by clicking on link, refresh the browser and try again. </p>'
+                        ]);
+                    }
+                } else {
+                    $phpIniFile = php_ini_loaded_file();
+
+                    if ($phpIniFile !== false) {
+                        $extensionSettings = [];
+                        $enabledExtensions = [];
+                        $disabledExtensions = [];
+                       
+                        $lines = file($phpIniFile, FILE_IGNORE_NEW_LINES);
+                       
+                        if (! empty($lines)) {
+                            foreach ($lines as $line) {
+                                $line = trim($line);
+                               
+                                if (preg_match('/^;?extension\s*=\s*(\S+)/i', $line, $matches)) {
+                                    if (substr($line, 0, 1) === ';') {
+                                        $disabledExtensions[] = $matches[1];
+                                    } else {
+                                        $enabledExtensions[] = $matches[1];
+                                    }
+                                }
+                            }
+                           
+                            if (! empty($enabledExtensions)) {
+                                if (in_array("redis",$enabledExtensions)) {
+                                    return new JsonResponse([
+                                        'status' => false,
+                                        'message' => "Kindly disable Redis from the php.ini file.",
+                                        'description' => '</span>If you want to connect with redis then follow the instruction Issue can be resolved by simply <p> <a href="https://redis.io/docs/getting-started/installation/install-redis-on-linux/ " target="_blank"> redis installation process </a> For connecting the redis-sever follow the redis installation process by clicking on link, refresh the browser and try again. </p>'
+                                    ]);
+                                }
+                            }
+                        }
+                    } 
+                }
+                
+                if ($isCacheEnabled) {
+                    $response['status'] = true;
+                    $response['message'] = sprintf('The connection to the Redis server has been successfully established.');
+                } else {
+                    $response['status'] = true;
+                }
                 break;
             default:
                 $code = 404;
