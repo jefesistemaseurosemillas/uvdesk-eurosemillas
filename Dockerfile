@@ -6,12 +6,19 @@ ENV GOSU_VERSION 1.11
 # Install base packages and dependencies
 RUN apt-get update && apt-get -y upgrade \
     && apt-get install -y \
+        software-properties-common \
         curl \
         wget \
         git \
         unzip \
         apache2 \
         mysql-server \
+        gnupg2 \
+        dirmngr \
+        ca-certificates \
+    && add-apt-repository -y ppa:ondrej/php \
+    && apt-get update \
+    && apt-get install -y \
         php7.4 \
         libapache2-mod-php7.4 \
         php7.4-common \
@@ -19,9 +26,6 @@ RUN apt-get update && apt-get -y upgrade \
         php7.4-imap \
         php7.4-mysql \
         php7.4-mailparse \
-        gnupg2 \
-        dirmngr \
-        ca-certificates \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
